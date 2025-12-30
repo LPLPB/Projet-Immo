@@ -3,29 +3,20 @@ import { supabase } from './supabaseClient';
 import {
   LogOut,
   PlusCircle,
-  LayoutDashboard,
   BrainCircuit,
   CheckCircle,
   XCircle,
-  Mail,
   Loader2,
   ArrowLeft,
   Wallet,
   Trash2,
   Info,
-  Landmark,
-  Calculator,
-  TrendingUp,
-  PieChart,
   ShieldCheck,
   AlertCircle,
   Save,
   Lock,
 } from 'lucide-react';
 
-// ==========================================
-// DESIGN SYSTEM & ANIMATIONS (CSS)
-// ==========================================
 const injectCSS = `
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
   body { font-family: 'Plus Jakarta Sans', sans-serif; margin: 0; background-color: #f8fafc; }
@@ -59,17 +50,11 @@ const injectCSS = `
   }
   .modal-content {
     background: white; padding: 32px; border-radius: 28px; width: 90%; max-width: 420px;
-    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); max-height: 90vh; overflow-y: auto;
   }
 
   .btn-delete { cursor: pointer; color: #ef4444; transition: transform 0.2s; }
   .btn-delete:hover { transform: scale(1.15); }
-
-  .linkedin-link { 
-    color: #64748b; text-decoration: none; font-size: 13px; transition: color 0.2s; 
-    display: flex; align-items: center; gap: 6px;
-  }
-  .linkedin-link:hover { color: #3b82f6; }
 
   .guest-banner {
     background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
@@ -84,9 +69,6 @@ const injectCSS = `
 `;
 
 function App() {
-  // ==========================================
-  // ÉTATS
-  // ==========================================
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState('');
@@ -114,12 +96,10 @@ function App() {
     emprunt: '',
     mens: '',
     remb: '',
+    apport: '',
     rev: '',
   });
 
-  // ==========================================
-  // LOGIQUE CORE
-  // ==========================================
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -154,7 +134,6 @@ function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // MODE INVITÉ - Sauvegarde temporaire
   const saveToGuest = () => {
     const newBien = {
       id: `guest_${Date.now()}`,
@@ -168,6 +147,7 @@ function App() {
       montant_emprunt: parseFloat(form.emprunt) || 0,
       mensualite: parseFloat(form.mens) || 0,
       montant_rembourse: parseFloat(form.remb) || 0,
+      apport_ajoute: parseFloat(form.apport) || 0,
     };
     setBiens([newBien, ...biens]);
     showNotify('Bien ajouté (session temporaire) 🎯', 'success');
@@ -181,11 +161,11 @@ function App() {
       surface: '',
       credit: false,
       loue: true,
+      apport: '',
     });
     setView('menu');
   };
 
-  // SAUVEGARDE EN BASE (compte créé)
   const handleSave = async () => {
     if (isGuest) {
       saveToGuest();
@@ -205,6 +185,7 @@ function App() {
         montant_emprunt: parseFloat(form.emprunt) || 0,
         mensualite: parseFloat(form.mens) || 0,
         montant_rembourse: parseFloat(form.remb) || 0,
+        apport_ajoute: parseFloat(form.apport) || 0,
         user_id: session.user.id,
       },
     ]);
@@ -222,6 +203,7 @@ function App() {
         surface: '',
         credit: false,
         loue: true,
+        apport: '',
       });
       setView('menu');
     }
@@ -243,7 +225,6 @@ function App() {
     }
   };
 
-  // CRÉATION DE COMPTE
   const handleSignUp = async () => {
     if (!email || !password) {
       showNotify('Email et mot de passe requis', 'error');
@@ -257,7 +238,6 @@ function App() {
     }
   };
 
-  // CONNEXION
   const handleSignIn = async () => {
     if (!email || !password) {
       showNotify('Email et mot de passe requis', 'error');
@@ -274,7 +254,6 @@ function App() {
     }
   };
 
-  // MIGRATION DES DONNÉES INVITÉ
   const migrateGuestData = async () => {
     if (!session?.user || biens.length === 0) return;
     const guestBiens = biens.filter((b) => b.id.startsWith('guest_'));
@@ -291,6 +270,7 @@ function App() {
       montant_emprunt: b.montant_emprunt,
       mensualite: b.mensualite,
       montant_rembourse: b.montant_rembourse,
+      apport_ajoute: b.apport_ajoute,
       user_id: session.user.id,
     }));
 
@@ -307,7 +287,6 @@ function App() {
     }
   }, [session]);
 
-  // CALCULS
   const totalDette = biens.reduce(
     (acc, b) => acc + ((b.montant_emprunt || 0) - (b.montant_rembourse || 0)),
     0
@@ -318,6 +297,7 @@ function App() {
     0
   );
   const totalLoyers = biens.reduce((acc, b) => acc + (b.loyer_mensuel || 0), 0);
+  const totalApport = biens.reduce((acc, b) => acc + (b.apport_ajoute || 0), 0);
 
   const revAnnuels = parseFloat(form.rev) || 0;
   const revMensuels = revAnnuels / 12;
@@ -331,17 +311,39 @@ function App() {
     }
     setAiAnalysis('loading');
     setTimeout(() => {
-      const conseil =
-        revAnnuels > 60000
-          ? "Votre TMI est élevée. L'IA préconise une SCI à l'IS pour éviter l'impôt sur le revenu et capitaliser sereinement."
-          : "Le régime LMNP au réel est votre meilleur allié : les amortissements comptables rendront vos loyers totalement nets d'impôts.";
+      const tmi = revAnnuels > 78570 ? 41 : revAnnuels > 28797 ? 30 : revAnnuels > 11294 ? 11 : 0;
+      const rendementBrut = totalInvesti > 0 ? ((totalLoyers * 12) / totalInvesti) * 100 : 0;
+      const cashflowNet = totalLoyers - totalMensualites;
+      const endettement = parseFloat(tauxEndettement);
+      
+      let regime: string;
+      let raisonnement: string;
+      
+      if (tmi >= 30 && totalInvesti > 200000) {
+        regime = "SCI à l'IS";
+        raisonnement = `Avec une TMI à ${tmi}% et un patrimoine immobilier de ${totalInvesti.toLocaleString()}€, la SCI à l'IS est recommandée. Ce régime vous permet d'être imposé au taux fixe de 15% (jusqu'à 42 500€ de bénéfices) puis 25%, bien inférieur à votre TMI personnelle. Les bénéfices peuvent être capitalisés dans la société pour financer de futurs investissements sans passer par l'impôt sur le revenu. De plus, l'amortissement du bien réduit le résultat fiscal.`;
+      } else if (tmi >= 30 && rendementBrut > 6) {
+        regime = "SCI à l'IS";
+        raisonnement = `Votre TMI élevée (${tmi}%) combinée à un rendement brut attractif de ${rendementBrut.toFixed(1)}% rend la SCI à l'IS pertinente. En LMNP, vos revenus locatifs seraient ajoutés à votre revenu imposable et taxés à ${tmi}%. La SCI à l'IS permet d'isoler ces revenus et de les imposer à un taux réduit, tout en conservant la possibilité d'amortir le bien comptablement.`;
+      } else if (tmi <= 30 && rendementBrut <= 8) {
+        regime = "LMNP au réel";
+        raisonnement = `Avec une TMI de ${tmi}% et un rendement de ${rendementBrut.toFixed(1)}%, le LMNP au réel est optimal. L'amortissement comptable du bien, du mobilier et des travaux permettra de réduire significativement, voire annuler, votre base imposable. Le cashflow de ${cashflowNet.toFixed(0)}€/mois sera ainsi quasiment net d'impôts. Ce régime offre aussi plus de flexibilité en cas de revente (pas de taxation des plus-values sur amortissements en LMNP).`;
+      } else if (cashflowNet < 0) {
+        regime = "LMNP au réel";
+        raisonnement = `Votre cashflow actuel est négatif (${cashflowNet.toFixed(0)}€/mois), ce qui indique un effort d'épargne. Le LMNP au réel est recommandé car les amortissements et charges déductibles créeront un déficit reportable, vous évitant toute imposition sur ces revenus pendant plusieurs années. La SCI à l'IS serait moins avantageuse car les déficits ne sont pas reportables sur votre revenu personnel.`;
+      } else {
+        regime = "LMNP au réel";
+        raisonnement = `Au vu de votre profil (TMI ${tmi}%, endettement ${endettement}%, rendement ${rendementBrut.toFixed(1)}%), le LMNP au réel offre le meilleur compromis. Les amortissements permettront de neutraliser fiscalement une grande partie de vos loyers. Ce régime reste simple à gérer et n'implique pas la création d'une structure juridique. Vous conservez également l'abattement pour durée de détention sur les plus-values immobilières.`;
+      }
+
+      const conseil = `**Régime recommandé : ${regime}**\n\n${raisonnement}`;
+
       setAiAnalysis({
-        score:
-          parseFloat(tauxEndettement) < 33
-            ? 'Profil Premium'
-            : 'Profil Restreint',
+        score: endettement < 33 ? 'Profil Premium' : 'Profil Restreint',
+        regime: regime,
         conseil: conseil,
         capacite: Math.max(0, revMensuels * 0.35 - totalMensualites).toFixed(0),
+        disclaimer: "⚠️ Cette analyse se base uniquement sur les données renseignées (revenus, endettement, rendement). D'autres facteurs importants doivent être pris en compte selon votre situation personnelle : situation familiale, objectifs patrimoniaux, projets de revente, autres revenus fonciers existants, stratégie de transmission, etc. Consultez un expert-comptable ou un conseiller en gestion de patrimoine pour une analyse complète.",
       });
     }, 1500);
   };
@@ -374,7 +376,6 @@ function App() {
         </div>
       )}
 
-      {/* MODAL CONNEXION/INSCRIPTION */}
       {showSaveModal && (
         <div className="custom-modal" onClick={() => setShowSaveModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -430,7 +431,6 @@ function App() {
         </div>
       )}
 
-      {/* MODAL IA */}
       {aiAnalysis && aiAnalysis !== 'loading' && (
         <div className="custom-modal" onClick={() => setAiAnalysis(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -448,10 +448,18 @@ function App() {
                 {aiAnalysis.score}
               </div>
             </div>
-            <div style={{ padding: 20, backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 20, fontSize: 13, lineHeight: 1.6, color: '#475569', marginBottom: 20 }}>
-              "{aiAnalysis.conseil}"
+            <div style={{ marginBottom: 20 }}>
+              <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>
+                Régime Fiscal Recommandé
+              </span>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#8b5cf6', marginTop: 4 }}>
+                {aiAnalysis.regime}
+              </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 }}>
+            <div style={{ padding: 20, backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 20, fontSize: 13, lineHeight: 1.7, color: '#475569', marginBottom: 20, whiteSpace: 'pre-wrap' }}>
+              {aiAnalysis.conseil.replace(/\*\*/g, '')}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div>
                 <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700 }}>
                   RESTE À EMPRUNTER
@@ -460,6 +468,9 @@ function App() {
                   {aiAnalysis.capacite}€ / mois
                 </div>
               </div>
+            </div>
+            <div style={{ padding: 16, backgroundColor: '#fef3c7', border: '1px solid #fde68a', borderRadius: 16, fontSize: 11, lineHeight: 1.6, color: '#92400e', marginBottom: 20 }}>
+              {aiAnalysis.disclaimer}
             </div>
             <button onClick={() => setAiAnalysis(null)} style={mainBtn}>
               Fermer le rapport
@@ -482,7 +493,6 @@ function App() {
 
       <div style={mainCard}>
         <div>
-          {/* DISCLAIMER */}
           <div style={disclaimerBox}>
             <AlertCircle size={16} color="#f59e0b" style={{ flexShrink: 0 }} />
             <span style={{ fontSize: 11, lineHeight: 1.5, color: '#78716c' }}>
@@ -490,7 +500,6 @@ function App() {
             </span>
           </div>
 
-          {/* BANNIÈRE MODE INVITÉ */}
           {isGuest && (
             <div className="guest-banner">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -531,7 +540,6 @@ function App() {
             )}
           </header>
 
-          {/* MENU PRINCIPAL */}
           {view === 'menu' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <button onClick={() => setView('add')} className="menu-btn" style={menuBtnStyle}>
@@ -570,7 +578,6 @@ function App() {
             </div>
           )}
 
-          {/* FORMULAIRE */}
           {view === 'add' && (
             <div style={formWrapper}>
               <button onClick={() => setView('menu')} style={backBtn}>
@@ -725,6 +732,16 @@ function App() {
                         />
                       </div>
                     </div>
+                    <label style={labelStyle}>
+                      Apport personnel <Tooltip text="Montant que vous avez apporté pour cet achat." />
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="Apport en €"
+                      value={form.apport}
+                      onChange={(e) => setForm({ ...form, apport: e.target.value })}
+                      style={inputField}
+                    />
                   </div>
                 )}
               </div>
@@ -734,7 +751,6 @@ function App() {
             </div>
           )}
 
-          {/* LISTE PATRIMOINE */}
           {view === 'list' && (
             <div style={formWrapper}>
               <button onClick={() => setView('menu')} style={backBtn}>
@@ -759,6 +775,19 @@ function App() {
                 </div>
               </div>
 
+              <div style={{ ...bienCardStyle, backgroundColor: '#f0fdf4', border: '1.5px solid #bbf7d0', marginBottom: 20, padding: 18 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <span style={{ fontSize: 10, color: '#166534', fontWeight: 800, textTransform: 'uppercase' }}>
+                      Total Apport Personnel
+                    </span>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: '#15803d' }}>
+                      {totalApport.toLocaleString()}€
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <h3 style={{ marginBottom: 16, fontSize: 18 }}>Inventaire des biens</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
                 {biens.map((b) => {
@@ -776,6 +805,11 @@ function App() {
                         </div>
                         <Trash2 size={20} onClick={() => handleDelete(b.id)} className="btn-delete" />
                       </div>
+                      {b.apport_ajoute > 0 && (
+                        <div style={{ fontSize: 12, color: '#15803d', marginTop: 8, fontWeight: 600 }}>
+                          Apport : {b.apport_ajoute.toLocaleString()}€
+                        </div>
+                      )}
                       <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f8fafc', paddingTop: 14, marginTop: 14 }}>
                         <div>
                           <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>
@@ -801,7 +835,6 @@ function App() {
             </div>
           )}
 
-          {/* VUE IA */}
           {view === 'ia' && (
             <div style={formWrapper}>
               <button onClick={() => setView('menu')} style={backBtn}>
@@ -859,16 +892,17 @@ function App() {
             </div>
           )}
 
-          {/* FOOTER LINKEDIN */}
           <div style={{ marginTop: 30, textAlign: 'center' }}>
+            <span style={{ fontSize: 13, color: '#64748b', display: 'block', marginBottom: 4 }}>
+              Créé par Léo-Paul Laisne
+            </span>
             <a
               href="https://www.linkedin.com/in/leopaullaisne"
               target="_blank"
               rel="noopener noreferrer"
-              className="linkedin-link"
-              style={{ justifyContent: 'center' }}
+              style={{ fontSize: 13, color: '#3b82f6', textDecoration: 'none', fontWeight: 600 }}
             >
-              Créé par Léo-Paul Laisne
+              linkedin
             </a>
           </div>
         </div>
@@ -884,7 +918,6 @@ const Tooltip = ({ text }: { text: string }) => (
   </div>
 );
 
-// STYLES
 const appWrapper: any = {
   minHeight: '100vh', width: '100vw', backgroundColor: '#f8fafc', display: 'flex',
   justifyContent: 'center', alignItems: 'center', position: 'absolute', top: 0, left: 0,
@@ -898,16 +931,16 @@ const inputField: any = {
   backgroundColor: '#f8fafc', color: '#0f172a', width: '100%', boxSizing: 'border-box', marginTop: '6px',
 };
 const labelStyle: any = {
-  fontSize: '11px', fontWeight: '800', color: '#94a3b8', marginTop: '18px',
+  fontSize: '11px', fontWeight: 800, color: '#94a3b8', marginTop: '18px',
   textTransform: 'uppercase', display: 'flex', alignItems: 'center', letterSpacing: '0.8px',
 };
 const saveBtn: any = {
   padding: '18px', backgroundColor: '#10b981', color: '#fff', border: 'none',
-  borderRadius: '18px', cursor: 'pointer', fontWeight: '800', marginTop: '25px', width: '100%', fontSize: 16,
+  borderRadius: '18px', cursor: 'pointer', fontWeight: 800, marginTop: '25px', width: '100%', fontSize: 16,
 };
 const mainBtn: any = {
   width: '100%', padding: '18px', backgroundColor: '#3b82f6', color: '#fff', border: 'none',
-  borderRadius: '18px', cursor: 'pointer', fontWeight: '800', display: 'flex',
+  borderRadius: '18px', cursor: 'pointer', fontWeight: 800, display: 'flex',
   justifyContent: 'center', alignItems: 'center', gap: 12, fontSize: 16,
 };
 const summaryCard: any = {
